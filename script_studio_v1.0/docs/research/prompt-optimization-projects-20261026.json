@@ -1,0 +1,159 @@
+{
+  "checked_date": "2026-10-26",
+  "timezone": "Asia/Shanghai",
+  "selection_rule": "Prefer high stars; verify unarchived repository and default-branch commit; assess product fit separately.",
+  "repositories": [
+    {
+      "repo": "linshenkx/prompt-optimizer",
+      "stars": 39266,
+      "archived": false,
+      "pushed_at": "2026-10-26T01:37:54Z",
+      "updated_at": "2026-10-26T08:48:04Z",
+      "default_branch": "develop",
+      "license": "NOASSERTION",
+      "url": "https://github.com/linshenkx/prompt-optimizer",
+      "default_branch_commit": {
+        "sha": "fe72bb1f6e6ff970658b67b75dc630ff1adcfc55",
+        "date": "2026-10-25T08:38:28Z",
+        "author": "linshen",
+        "subject": "chore(release): prepare v2.12.0 stable",
+        "url": "https://github.com/linshenkx/prompt-optimizer/commit/fe72bb1f6e6ff970658b67b75dc630ff1adcfc55"
+      },
+      "recommended": true,
+      "role": "research_reference"
+    },
+    {
+      "repo": "stanfordnlp/dspy",
+      "stars": 38792,
+      "archived": false,
+      "pushed_at": "2026-10-25T12:18:26Z",
+      "updated_at": "2026-10-26T08:41:41Z",
+      "default_branch": "main",
+      "license": "MIT",
+      "url": "https://github.com/stanfordnlp/dspy",
+      "default_branch_commit": {
+        "sha": "15aad8de2678a4d89a3a093e944fe58f8744c497",
+        "date": "2026-10-25T12:18:26Z",
+        "author": "Isaac Miller",
+        "subject": "docs: fix ControlArena tutorial link (#10722)",
+        "url": "https://github.com/stanfordnlp/dspy/commit/15aad8de2678a4d89a3a093e944fe58f8744c497"
+      },
+      "recommended": true,
+      "role": "research_reference"
+    },
+    {
+      "repo": "langfuse/langfuse",
+      "stars": 36502,
+      "archived": false,
+      "pushed_at": "2026-10-26T07:27:35Z",
+      "updated_at": "2026-10-26T08:40:01Z",
+      "default_branch": "main",
+      "license": "NOASSERTION",
+      "url": "https://github.com/langfuse/langfuse",
+      "default_branch_commit": {
+        "sha": "0e024ca8eae1da68f08514a46edb7a37a4f2d0b2",
+        "date": "2026-10-25T19:21:12Z",
+        "author": "Nimar",
+        "subject": "feat(topics): make it work well on mobile (#19364)",
+        "url": "https://github.com/langfuse/langfuse/commit/0e024ca8eae1da68f08514a46edb7a37a4f2d0b2"
+      },
+      "recommended": true,
+      "role": "research_reference"
+    },
+    {
+      "repo": "promptfoo/promptfoo",
+      "stars": 26446,
+      "archived": false,
+      "pushed_at": "2026-10-26T04:44:12Z",
+      "updated_at": "2026-10-26T08:36:11Z",
+      "default_branch": "main",
+      "license": "MIT",
+      "url": "https://github.com/promptfoo/promptfoo",
+      "default_branch_commit": {
+        "sha": "b4c2404a0dee93dcd4d53a323d6f32f87ee27558",
+        "date": "2026-10-25T11:32:41Z",
+        "author": "renovate[bot]",
+        "subject": "fix(deps): update direct MSAL dependency to 7.1.0 (#11970)",
+        "url": "https://github.com/promptfoo/promptfoo/commit/b4c2404a0dee93dcd4d53a323d6f32f87ee27558"
+      },
+      "recommended": true,
+      "role": "research_reference"
+    },
+    {
+      "repo": "comet-ml/opik",
+      "stars": 22928,
+      "archived": false,
+      "pushed_at": "2026-10-26T08:41:31Z",
+      "updated_at": "2026-10-26T08:46:17Z",
+      "default_branch": "main",
+      "license": "Apache-2.0",
+      "url": "https://github.com/comet-ml/opik",
+      "default_branch_commit": {
+        "sha": "763a2ec2568f71f7957aa33e0a9b10cb2b2d3ba2",
+        "date": "2026-10-23T20:13:26Z",
+        "author": "Aswin Thiyagarajan",
+        "subject": "[NA] [DOCS] docs: document building custom dashboard widgets with Ollie (#9199)",
+        "url": "https://github.com/comet-ml/opik/commit/763a2ec2568f71f7957aa33e0a9b10cb2b2d3ba2"
+      },
+      "recommended": true,
+      "role": "research_reference"
+    },
+    {
+      "repo": "confident-ai/deepeval",
+      "stars": 19108,
+      "archived": false,
+      "pushed_at": "2026-10-23T11:41:01Z",
+      "updated_at": "2026-10-26T08:24:55Z",
+      "default_branch": "main",
+      "license": "Apache-2.0",
+      "url": "https://github.com/confident-ai/deepeval",
+      "default_branch_commit": {
+        "sha": "5410e3822dda5f889d5f35de3325a3738004aeb1",
+        "date": "2026-10-23T11:40:53Z",
+        "author": "Jeffrey Ip",
+        "subject": "Merge pull request #3522 from confident-ai/cli-api-key-validation",
+        "url": "https://github.com/confident-ai/deepeval/commit/5410e3822dda5f889d5f35de3325a3738004aeb1"
+      },
+      "recommended": true,
+      "role": "research_reference"
+    },
+    {
+      "repo": "gepa-ai/gepa",
+      "stars": 7148,
+      "archived": false,
+      "pushed_at": "2026-10-22T22:25:09Z",
+      "updated_at": "2026-10-26T08:46:09Z",
+      "default_branch": "main",
+      "license": "MIT",
+      "url": "https://github.com/gepa-ai/gepa",
+      "default_branch_commit": {
+        "sha": "7af5f0c5c79fcc16b2d5248b187d0864683edd4d",
+        "date": "2026-10-22T22:25:08Z",
+        "author": "Jin Long",
+        "subject": "fix: close eval server listener on stop",
+        "url": "https://github.com/gepa-ai/gepa/commit/7af5f0c5c79fcc16b2d5248b187d0864683edd4d"
+      },
+      "recommended": true,
+      "role": "research_reference"
+    },
+    {
+      "repo": "microsoft/PromptWizard",
+      "stars": 4022,
+      "archived": false,
+      "pushed_at": "2025-10-13T21:51:01Z",
+      "updated_at": "2026-10-25T12:18:55Z",
+      "default_branch": "main",
+      "license": "MIT",
+      "url": "https://github.com/microsoft/PromptWizard",
+      "default_branch_commit": {
+        "sha": "a1d43f876ef4468b0549a3ceff8bd691b80cd667",
+        "date": "2025-08-04T08:53:19Z",
+        "author": "raghav-2002-os",
+        "subject": "Update README.md",
+        "url": "https://github.com/microsoft/PromptWizard/commit/a1d43f876ef4468b0549a3ceff8bd691b80cd667"
+      },
+      "recommended": false,
+      "role": "excluded_due_to_old_default_branch_commit"
+    }
+  ]
+}

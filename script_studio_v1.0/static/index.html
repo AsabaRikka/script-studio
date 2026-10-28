@@ -1,0 +1,1224 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>守桥脚本工作室</title>
+  <link rel="stylesheet" href="studio.css">
+  <link rel="icon" href="/favicon.ico?v=1" sizes="any">
+  <link rel="icon" href="/app-icon.svg?v=1" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta name="application-name" content="守桥脚本工作室">
+  <script>document.documentElement.dataset.theme=localStorage.getItem("studio-theme")||"light";</script>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      
+      <span>守桥文案库 · 脚本工作室 <small style="color:var(--accent); font-weight:normal;">v1.0</small></span>
+      <span class="badge" id="header-model-badge">读取模型配置中…</span>
+      <span class="badge">飞书 (Rhein)</span>
+      <span class="badge badge-purple" id="header-mode-badge">多篇竞对多向融合</span>
+    </div>
+    <div class="header-actions">
+      <details class="view-menu"><summary class="btn-sm">阅读设置</summary><div class="view-popover">
+        <label for="font-size">界面字号 <output id="font-size-value">15px</output></label>
+        <input id="font-size" type="range" min="13" max="20" value="15" oninput="setFontSize(this.value)">
+        <p class="batch-note">拖动栏间分隔线调整宽度；双击恢复。</p>
+        <button class="btn-sm" onclick="resetLayout()">恢复默认布局</button>
+      </div></details>
+      <button class="btn-sm" id="btn-theme" onclick="toggleTheme()">深色</button>
+      <button class="btn-sm" onclick="openPromptEditor()">提示词设置</button>
+      <button class="btn-sm" onclick="openPromptOptimizer()">提示词优化</button>
+      <button class="btn-sm" onclick="openMaterialIntake()">补充素材库</button>
+      <button class="btn-sm" id="btn-config" onclick="openConfigModal()" title="设置大模型 API 服务地址与密钥">
+         模型配置
+      </button>
+      <button class="btn-sm" onclick="syncFeishu()" id="btn-sync">
+         同步飞书
+      </button>
+      <button class="btn-sm" onclick="openHistory()">
+         草稿箱 (<span id="draft-count">0</span>)
+      </button>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- 左栏：5维度正交资产池 & 使用率雷达 -->
+    <div class="panel">
+      <div class="panel-header">
+        <span> 素材库</span>
+        <span class="badge badge-danger" id="active-cold-badge">冷门统计</span>
+      </div>
+      <div class="panel-body">
+        <div class="material-visibility">
+          <label><input id="hide-used-rivals" type="checkbox" checked onchange="changeMaterialVisibility()"> 隐藏飞书已使用竞对及关联素材</label>
+          <label><input id="count-draft-usage" type="checkbox" onchange="changeDraftUsageCounting()"> 草稿中的素材使用也计入次数</label>
+          <small id="material-usage-status" role="status">使用次数：仅文案库</small>
+          <div><small id="material-visibility-status" role="status">正在核对飞书状态…</small><button id="refresh-rival-status" class="btn-sm" onclick="changeMaterialVisibility(true)">刷新状态与关卡</button></div>
+          <small id="level-refresh-status" role="status">关卡库：本地缓存</small>
+          <small>按钮刷新竞对使用状态及关卡内容；其他素材仍读本地缓存。草稿计数开关只影响显示，同编号不重复。</small>
+        </div>
+        <div class="tabs-nav">
+          <button class="tab-btn active" onclick="switchTab('weapons')">武器库 (<span id="count-w">35</span>)</button>
+          <button class="tab-btn" onclick="switchTab('rivals')">竞对库 (<span id="count-r">…</span>)</button>
+          <button class="tab-btn" onclick="switchTab('shots')">分镜库 (<span id="count-s">…</span>)</button>
+          <button class="tab-btn" onclick="switchTab('comps')">组件库 (<span id="count-c">…</span>)</button>
+          <button class="tab-btn" onclick="switchTab('welfares')">福利库 (<span id="count-wf">21</span>)</button>
+          <button class="tab-btn" onclick="switchTab('gameplays')">玩法库 (<span id="count-gp">14</span>)</button>
+          <button class="tab-btn" onclick="switchTab('levels')">关卡库 (<span id="count-level">0</span>)</button>
+        </div>
+
+        <input type="text" class="search-input" id="search-box" placeholder=" 检索名称、特性、技能或玩法事实..." oninput="filterCurrentTab()">
+
+        <div class="selection-tools"><span id="selection-tab-count">本板块未选 · 随机</span><div><button class="btn-sm" onclick="selectVisibleMaterials()">全选筛选结果</button><button class="btn-sm" onclick="clearMaterialSelection(currentTab)">清空本板块</button></div></div>
+        <div id="tab-content-list" style="overflow-y:auto; flex:1;">
+          <!-- 动态渲染列表 -->
+        </div>
+      </div>
+    </div>
+
+    <!-- 中栏：全要素正交碰撞机 (Slot Machine) -->
+    <div class="panel">
+      <div class="panel-header">
+        <span> 创作台</span>
+        <span class="badge badge-purple" id="slot-mode-badge">多篇竞对-多向融合</span>
+      </div>
+      <div class="panel-body">
+        <button class="btn-sm revision-entry" id="open-revision-studio" onclick="openRevisionStudio()">在沉浸式精修中改写已有文案</button>
+        <!-- 飞书主表四分类创作模式切换 -->
+        <div class="mode-nav" style="display:flex; gap:0.35rem; margin-bottom:0.75rem; background:var(--surface); padding:0.35rem; border-radius:8px;">
+          <button class="tab-btn active" id="mode-btn-mix" onclick="switchMode('多篇竞对-多向融合')"> 多篇竞对-多向融合</button>
+          <button class="tab-btn" id="mode-btn-single" onclick="switchMode('单篇竞对-定向仿写')"> 单篇竞对-定向仿写</button>
+          <button class="tab-btn" id="mode-btn-skl" onclick="switchMode('竞对骨架-原创内容')"> 竞对骨架-原创内容</button>
+          <button class="tab-btn" id="mode-btn-ori" onclick="switchMode('本体事实-自主原创')"> 本体事实-自主原创</button>
+        </div>
+
+        <button class="btn btn-dice" id="btn-roll" onclick="rollSlot()">
+            重新抽取素材组合
+        </button>
+
+        <details class="slot-box" id="slot-card">
+          <summary>本次素材组合 <span id="slot-summary" class="item-sub"></span></summary>
+          <!-- 0. 关卡仅在明确勾选后注入脚本 -->
+          <div class="slot-section">
+            <div class="section-title">
+              <span> 明确勾选的关卡目标（需体现在脚本中）</span>
+              <span class="badge tag-blue">未勾选不注入</span>
+            </div>
+            <div id="slot-level"><div class="sub-card">未勾选关卡库，不注入关卡信息</div></div>
+          </div>
+
+          <!-- 玩法条目仅在明确勾选后注入脚本 -->
+          <div class="slot-section">
+            <div class="section-title">
+              <span> 明确勾选的玩法条目（需体现在脚本中）</span>
+              <span class="badge tag-green">未勾选不注入</span>
+            </div>
+            <div id="slot-gameplay">-</div>
+          </div>
+
+          <!-- 1. 武器与技能 -->
+          <div class="slot-section">
+            <div class="section-title">
+              <span> 1. 目标武器与强化特写</span>
+              <span id="slot-w-usage" class="badge">使用率: -</span>
+            </div>
+            <div id="slot-weapon">请点击上方摇号抽取...</div>
+          </div>
+
+          <!-- 2. 融合参考竞对 (2~3篇) -->
+          <div class="slot-section" id="section-rivals">
+            <div class="section-title">
+              <span id="rivals-section-title"> 2. 融合参考竞对 (2~3篇多向拆解)</span>
+              <span class="badge badge-purple">骨架与情绪吸纳</span>
+            </div>
+            <div id="slot-rivals">-</div>
+          </div>
+
+          <!-- 3. 参考分镜视听映射 (3镜) -->
+          <div class="slot-section" id="section-shots">
+            <div class="section-title">
+              <span> 3. 参考竞对分镜 (镜头视听映射)</span>
+              <span class="badge tag-blue">具体镜头参考</span>
+            </div>
+            <div id="slot-shots">-</div>
+          </div>
+
+          <!-- 4. 参考组件拼装链 (GZ -> CT -> WJ -> SD -> CTA) -->
+          <div class="slot-section" id="section-comps">
+            <div class="section-title">
+              <span> 4. 参考组件拼装链 (GZ/CT/WJ/SD/CTA)</span>
+              <span class="badge tag-green">模块化语料</span>
+            </div>
+            <div id="slot-comps">-</div>
+          </div>
+
+          <!-- 5. 福利与情绪 -->
+          <div class="slot-section">
+            <div class="section-title">
+              <span> 5. 关联福利点 & 情绪标签</span>
+            </div>
+            <div id="slot-welfare-emotion">-</div>
+          </div>
+        </details>
+
+        <div class="settings-grid">
+          <div><label for="reasoning-effort">思考程度</label><select id="reasoning-effort"><option value="auto">跟随服务默认</option><option value="low">低 · 更快响应</option><option value="medium">中 · 均衡</option><option value="high">高 · 深入思考</option></select></div>
+          <div><label for="max-duration">口播时长上限</label><select id="max-duration"><option value="30">不超过 30 秒</option><option value="40">不超过 40 秒</option><option value="50">不超过 50 秒</option><option value="60" selected>不超过 60 秒</option></select></div>
+        </div>
+        <div style="margin-bottom: 0.8rem;">
+          <label style="color: var(--text-muted); display: block; margin-bottom: 0.3rem;">
+            生成模型 <span id="model-endpoint" class="item-sub"></span>
+          </label>
+          <select id="model-select" style="width: 100%; padding: 0.55rem; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; "><option value="">读取配置中…</option></select>
+          <div id="model-note" class="batch-note"></div>
+        </div>
+
+        <div style="margin-bottom: 0.8rem;">
+          <label style="color: var(--text-muted); display: block; margin-bottom: 0.3rem;">
+            仿写方式
+          </label>
+          <select id="rewrite-mode-select" style="width: 100%; padding: 0.55rem; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; ">
+            <option value="sentence_by_sentence" selected>严格逐句对仗洗稿 (1:1对齐原稿语势与节奏，只替换游戏机制)</option>
+            <option value="structural">意译结构仿写 (保持原结构骨架与爆点，句式微调)</option>
+          </select>
+        </div>
+
+        <div style="margin-bottom: 0.8rem;">
+          <label style="color: var(--text-muted); display: block; margin-bottom: 0.3rem;">
+            微调补充指令（可选）：
+          </label>
+          <input type="text" id="custom-prompt" placeholder="例如：保留母稿停顿，突出三选一时的犹豫与选择" style="width: 100%; padding: 0.55rem; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; ">
+        </div>
+
+        <!-- 游戏全貌与丰富特色画像注入开关 (可选) -->
+        <div style="margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; background: var(--surface); padding: 0.6rem 0.85rem; border-radius: 8px; border: 1px solid var(--border);">
+          <div>
+            <strong style="color: var(--text);"> 深度注入游戏全貌与特色画像</strong>
+            <div style="color: var(--text-muted); line-height: 1.35; margin-top: 0.15rem;">融入战车割草视觉、怪潮下压、宝箱与关卡细节，避免单调 (可选开关)</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="toggle-game-profile">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <button class="btn" id="btn-generate" onclick="generateScript()" disabled>
+           生成一篇口播
+        </button>
+
+        <div class="batch-controls">
+          <label for="batch-count" class="batch-note">篇数</label>
+          <input id="batch-count" type="number" min="1" max="100" step="1" value="5" aria-label="批量篇数">
+          <button class="btn btn-secondary" id="btn-batch" onclick="startBatch()" disabled>批量生成口播</button>
+        </div>
+        <div class="batch-selection"><div class="batch-selection-heading"><strong>素材抽取与生成范围</strong><button class="btn-sm" onclick="clearMaterialSelection()">清空全部选择</button></div>
+          <label class="sampling-toggle"><input id="pure-random-sampling" type="checkbox" onchange="changeRandomSampling()"><span>纯随机抽取，不按使用次数</span></label>
+          <p id="sampling-help" class="batch-note"></p><p id="sampling-status" class="batch-note" role="status"></p>
+          <div id="batch-selection-summary"></div><p class="batch-note">勾选同时限制重新抽取、单篇及批量生成；玩法库与关卡库未勾选均不注入，勾选后体现本次抽到的所选条目。其他未选板块使用当前可用全库。修改范围或抽取方式后请重新抽取。融合每篇最多参考3篇，分镜仍沿同一来源连续选取。</p></div>
+        <div class="error-box" id="error-box" role="alert"></div>
+
+        <div class="loader" id="loader">
+          
+          <div>AI 正在基于 5 维正交要素精磨文案与分镜...</div>
+          <div style="color: var(--text-muted); margin-top: 0.3rem;">严格限制 5.6 字/秒 语速 · 严禁公关腔 · 组装查重摘要</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右栏：文案质检雷达与完整多向融合产物 -->
+    <div class="panel">
+      <div class="panel-header">
+        <span> 口播与分镜</span>
+        <div style="display:flex; gap:0.4rem;">
+          <button class="badge" id="btn-review-copy" onclick="openQualityReview()" disabled title="先生成或从草稿箱打开一篇文案">评价文案</button>
+          <button class="badge" onclick="copyScript()" style="cursor: pointer; background: transparent;"> 复制</button>
+          <button class="badge" onclick="exportMarkdown()" style="cursor: pointer; background: transparent;"> 导出MD</button>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="batch-area" id="batch-area" aria-live="polite">
+          <div class="batch-heading"><strong id="batch-status">批量生成</strong><button id="btn-fold-batch" class="btn-sm" onclick="toggleBatchList()" aria-expanded="true">收起列表</button></div>
+          <span id="batch-model" class="item-sub"></span>
+          <div id="batch-list"></div>
+          <div class="batch-actions">
+            <button class="btn-sm" id="btn-batch-stop" onclick="batchAction('cancel')">停止后续生成</button>
+            <button class="btn-sm" id="btn-batch-retry" onclick="batchAction('retry')" hidden>重试未完成项</button>
+            <button class="btn-sm" id="btn-batch-export" onclick="exportBatch()" disabled>导出成功口播</button>
+          </div>
+        </div>
+        <div class="radar-box">
+          <div class="radar-tag" id="radar-speed">
+            <div><strong id="val-speed">-</strong></div>
+            <span style="">语速核验 (5.6字/s)</span>
+          </div>
+          <div class="radar-tag" id="radar-banned">
+            <div><strong id="val-banned">-</strong></div>
+            <span style="">AI公关词检测</span>
+          </div>
+          <div class="radar-tag ok" id="radar-gameplay">
+            <div><strong id="val-gameplay">待人工核对</strong></div>
+            <span style="">玩法事实复核</span>
+          </div>
+        </div>
+
+        <div id="result-container" style="display: none;">
+          <div class="result-toolbar"><button class="btn-sm" onclick="collapseResult()">收起当前文案</button><button id="btn-collect-result" class="btn-sm" onclick="collectCurrentResult()">收纳到草稿箱</button></div>
+          <div style="margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center;">
+            <strong id="res-title" style="color: var(--accent); ">-</strong><p id="res-weapons" class="item-sub"></p>
+            <span class="badge badge-purple" id="res-code">MIX-001</span>
+          </div>
+
+          <div id="quality-summary" class="quality-summary"></div>
+          <div class="sub-card" style="margin-bottom: 0.6rem; border-color: var(--border);">
+            <strong style="color: var(--purple); ">查重摘要：</strong>
+            <span id="res-dup" style="color: var(--text-muted);">-</span>
+          </div>
+
+          <div style="color: var(--text-muted); margin-bottom: 0.5rem;">
+            <strong>钩子爆点机制：</strong><span id="res-hook-analysis">-</span>
+          </div>
+
+          <!-- 第一稿：竞对逐镜仿写拼接原文 -->
+          <div id="res-stage1-panel" style="display: none; margin-bottom: 0.85rem; background: var(--surface); border: 1px solid var(--accent); border-radius: 8px; padding: 0.85rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+              <strong style="color: var(--accent); font-size: 0.92rem;">第一稿 · 竞对逐镜一比一仿写拼接原文</strong>
+              <span class="badge badge-purple" id="res-stage1-badge">1:1 对仗仿写初版</span>
+            </div>
+            <div id="res-stage1-script" style="line-height: 1.6; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.65rem 0.85rem; margin-bottom: 0.45rem; font-size: 0.9rem; max-height: 140px; overflow-y: auto; white-space: pre-wrap;">-</div>
+            <details id="res-stage1-details" style="font-size: 0.84rem;">
+              <summary style="cursor: pointer; color: var(--text-muted); user-select: none;">展开查看逐镜 1:1 竞对原句与仿写对照</summary>
+              <div id="res-stage1-table" style="margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.45rem;"></div>
+            </details>
+          </div>
+
+          <!-- 全文双栏对照 -->
+          <div class="script-comparison" style="display:grid; grid-template-columns:1fr 1fr; gap:0.6rem; margin-bottom:1rem;">
+            <details class="reference-details"><summary>竞对参考原稿口播</summary><div id="res-ref-script" class="script-box">-</div></details>
+            <div style="background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:0.75rem;">
+              <div style="font-weight:700; color:var(--text); margin-bottom:0.35rem;">
+                  第二稿 · AI 整体优化成稿口播全文
+              </div>
+              <div id="res-script" style="line-height:1.5; color:var(--text); max-height:170px; overflow-y:auto; white-space:pre-wrap;">-</div>
+            </div>
+          </div>
+
+          <section class="manual-draft-panel">
+            <div class="manual-draft-heading"><label for="manual-script">人工修改稿</label><button class="btn-sm" onclick="openManualEditor()">沉浸式分镜精修</button></div>
+            <textarea id="manual-script" rows="7" placeholder="在这里直接填写人工修改稿，预览时会写入飞书的「人工修改稿」字段。" oninput="updateManualScript(this.value)"></textarea>
+            <div class="manual-draft-foot"><span id="manual-script-info">原稿保留，人工稿单独保存。</span><button class="btn-sm" onclick="saveHumanDraft()">保存人工稿</button></div>
+          </section>
+          <details class="result-details" open><summary>逐镜原文对照与分镜脚本</summary>
+          <div id="shots-list"></div>
+          </details>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 1rem;">
+            <button class="btn btn-secondary" onclick="saveAsDraft()">
+               存为本地草稿
+            </button>
+            <button class="btn btn-success" id="btn-writeback" onclick="writebackToFeishu()">
+               预览并写入飞书
+            </button>
+          </div>
+          <div id="writeback-status" style="margin-top: 0.5rem; text-align: center;"></div>
+        </div>
+
+        <div id="empty-hint" style="text-align: center; color: var(--text-muted); padding: 4rem 1rem;">
+          
+          <p>素材已就绪，开始写第一篇。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 草稿箱抽屉 -->
+  <div class="drawer-overlay" id="drawer-overlay" onclick="closeHistory()">
+    <div class="drawer" onclick="event.stopPropagation()">
+      <div class="drawer-header">
+        <span> 本地草稿箱与历史记录</span>
+        <button style="background:none; border:none; color:var(--text); cursor:pointer;" onclick="closeHistory()">&times;</button>
+      </div>
+      <div class="history-tools"><input id="history-search" class="search-input" placeholder="搜索标题、编号或口播" oninput="renderHistory()"><div class="history-filters"><button id="history-all" class="btn-sm active" onclick="setHistoryFilter(false)">全部草稿</button><button id="history-collected" class="btn-sm" onclick="setHistoryFilter(true)">已收纳</button></div></div>
+      <div class="drawer-body" id="history-list"></div>
+    </div>
+  </div>
+
+  <!-- 模型配置模态弹窗 -->
+  <div class="drawer-overlay" id="config-modal-overlay" style="display:none;" onclick="closeConfigModal()">
+    <div style="position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); width:520px; background:var(--card-bg); border:1px solid var(--border); border-radius:12px; box-shadow:0 10px 40px rgba(0,0,0,0.7); z-index:102; overflow:hidden;" onclick="event.stopPropagation()">
+      <div style="padding:1rem 1.25rem; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-weight:700; display:flex; align-items:center; gap:0.5rem;">
+           模型配置
+        </span>
+        <button style="background:none; border:none; color:var(--text-muted); cursor:pointer;" onclick="closeConfigModal()">&times;</button>
+      </div>
+      <div style="padding:1.25rem;">
+        <div style="color:var(--text-muted); margin-bottom:1rem; line-height:1.45;">
+          设置脚本生成使用的服务与默认模型。保存后立即同步到创作台。
+        </div>
+
+        <div style="margin-bottom:0.85rem;">
+          <label style="display:block; font-weight:600; margin-bottom:0.35rem; color:var(--text-muted);">API 基础地址 (Base URL):</label>
+          <input type="text" id="cfg-api-url" class="search-input" style="width:100%; font-family:monospace;" placeholder="http://127.0.0.1:8045">
+          <div style="color:var(--text-muted); margin-top:0.25rem;">兼容 OpenAI /v1/chat/completions 规范（如本地服务或任何云端 API）</div>
+        </div>
+
+        <div style="margin-bottom:0.85rem;">
+          <label style="display:block; font-weight:600; margin-bottom:0.35rem; color:var(--text-muted);">API 密钥 (API Key):</label>
+          <input type="password" id="cfg-api-key" class="search-input" style="width:100%; font-family:monospace;" placeholder="留空保留已有密钥">
+        </div>
+
+        <div style="margin-bottom:1rem;">
+          <label style="display:block; font-weight:600; margin-bottom:0.35rem; color:var(--text-muted);">默认模型名称 (Default Model):</label>
+          <input type="text" id="cfg-default-model" class="search-input" style="width:100%; font-family:monospace;" placeholder="gemini-3.8-flash">
+        </div>
+
+        <div style="margin-bottom:1rem;">
+          <label style="display:block; font-weight:600; margin-bottom:0.35rem; color:var(--text-muted);">单次模型请求等待上限（秒）:</label>
+          <input type="number" id="cfg-request-timeout" class="search-input" style="width:100%;" min="60" max="600" step="30" value="300">
+          <div style="color:var(--text-muted); margin-top:0.25rem;">高思考程度或模型繁忙时可延长；范围60–600秒。批量任务逐篇执行，每篇分别计时。</div>
+        </div>
+
+        <div class="config-field"><label for="cfg-reasoning-effort">默认思考程度</label><select id="cfg-reasoning-effort"><option value="auto">跟随服务默认</option><option value="low">低</option><option value="medium">中</option><option value="high">高</option></select><p class="batch-note">可在创作台单独调整；所选模型与服务需支持该参数。</p></div>
+        <div id="cfg-test-result" style="margin-bottom:0.85rem; display:none; padding:0.5rem 0.75rem; border-radius:6px;"></div>
+
+        <div style="display:flex; gap:0.65rem;">
+          <button class="btn btn-secondary" style="flex:1;" onclick="testModelConfig()" id="btn-cfg-test">
+             连通性测试
+          </button>
+          <button class="btn btn-success" style="flex:1;" onclick="saveModelConfig()" id="btn-cfg-save">
+             保存并生效
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <dialog id="prompt-editor" aria-labelledby="prompt-editor-title">
+    <div class="prompt-editor-head"><h3 id="prompt-editor-title">提示词设置</h3><button class="btn-sm" onclick="closePromptEditor()">关闭</button></div>
+    <p class="batch-note">这里编辑生成与改写共用的完整规则。双花括号变量会替换为当前素材，请保留；JSON 输出字段及语法须完整。保存后用于后续请求，已开始的批次沿用原规则。</p>
+    <div class="prompt-version-box">
+      <div class="prompt-version-row">
+        <label for="prompt-version-select">提示词版本切换</label>
+        <select id="prompt-version-select" onchange="selectPromptVersion()"></select>
+        <button class="btn btn-primary btn-sm" id="prompt-version-apply" onclick="applySelectedPromptVersion()">切换并生效</button>
+        <button class="btn-sm" id="prompt-version-delete" onclick="deleteSelectedPromptVersion()" hidden>删除此版本</button>
+      </div>
+      <p id="prompt-version-desc" class="batch-note"></p>
+      <div class="prompt-version-save-row">
+        <input class="search-input" id="prompt-version-name" placeholder="将当前编辑另存为新版本（例如：v3 短句反差版）" maxlength="80" aria-label="新提示词版本名称">
+        <button class="btn-sm" id="prompt-version-save-as" onclick="savePromptAsNewVersion()">另存为新版本并生效</button>
+      </div>
+    </div>
+    <label for="prompt-section">编辑板块</label><select id="prompt-section" onchange="changePromptSection()"></select><p id="prompt-tokens" class="batch-note"></p>
+    <label id="prompt-text-label" for="prompt-text">提示词模板</label><textarea id="prompt-text" rows="16" oninput="markPromptDirty()" spellcheck="false"></textarea>
+    <div class="rewrite-actions"><button class="btn btn-primary" id="prompt-save" onclick="savePromptEditor()">保存并生效</button><button class="btn-sm" onclick="resetPromptSection()">本板块恢复默认</button><button class="btn-sm" onclick="resetAllPrompts()">全部恢复默认</button></div>
+    <div class="prompt-preview-controls"><label for="prompt-preview-target">完整预览对象</label><select id="prompt-preview-target"><option value="generate">当前创作素材</option><option value="revision">已有文案改写</option></select><button class="btn-sm" id="prompt-preview-button" onclick="previewFullPrompt()">预览完整提示词</button><button class="btn-sm" onclick="copyFullPrompt()">复制完整提示词</button></div>
+    <p id="prompt-status" role="status"></p><details id="prompt-preview"><summary>实际发送给模型的提示词（预览不调用模型）</summary><label for="prompt-preview-system">系统提示词</label><textarea id="prompt-preview-system" readonly rows="12"></textarea><label for="prompt-preview-user">任务提示词与数据库素材</label><textarea id="prompt-preview-user" readonly rows="16"></textarea></details>
+  </dialog>
+  <dialog id="writeback-preview" aria-labelledby="writeback-preview-title">
+    <div class="writeback-preview-head"><h3 id="writeback-preview-title">飞书记录预览</h3><button class="btn-sm" onclick="document.getElementById('writeback-preview').close()">关闭</button></div>
+    <div id="writeback-preview-body"></div>
+    <p id="writeback-preview-status" role="status" aria-live="polite"></p>
+    <div class="writeback-preview-actions"><button class="btn btn-secondary" onclick="document.getElementById('writeback-preview').close()">取消</button><button class="btn btn-primary" id="confirm-writeback" onclick="confirmWriteback()">写入并核验</button></div>
+  </dialog>
+  <dialog id="manual-editor" aria-labelledby="manual-editor-title">
+    <header class="manual-editor-header">
+      <div><div class="editor-eyebrow">文稿工作台 <span id="manual-editor-code"></span></div><h2 id="manual-editor-title">沉浸式分镜精修</h2></div>
+      <div class="manual-editor-actions"><span id="manual-editor-state" role="status"></span><button class="btn btn-secondary" id="manual-editor-save" onclick="saveSceneEditor()">保存修改</button><button class="btn btn-primary" id="manual-editor-preview" onclick="saveSceneEditor(true)">保存并预览飞书</button><button class="btn-sm" onclick="closeManualEditor()">退出精修</button></div>
+    </header>
+    <div class="manual-editor-body">
+      <aside class="editor-reading" aria-label="AI 原稿对照"><div class="editor-reading-head"><div class="editor-eyebrow">AI 原稿全文 · 对照阅读</div><h3 id="manual-editor-name"></h3></div><div id="editor-original" class="editor-copy"></div><details class="editor-original" open><summary>对照来源原文</summary><div id="editor-reference" class="editor-copy"></div></details></aside>
+      <section class="editor-editing" aria-label="逐镜编辑">
+        <div class="editor-ai-settings rewrite-fields"><div class="rewrite-grid"><div><label for="editor-ai-model">模型</label><select id="editor-ai-model"></select></div><div><label for="editor-ai-effort">思考程度</label><select id="editor-ai-effort"><option value="auto">跟随服务默认</option><option value="low">低</option><option value="medium">中</option><option value="high">高</option></select></div><div><label for="editor-ai-duration">AI整篇时长上限</label><select id="editor-ai-duration"><option value="30">30秒</option><option value="40">40秒</option><option value="50">50秒</option><option value="60">60秒</option></select></div><div><label for="editor-ai-profile"><input id="editor-ai-profile" type="checkbox">启用游戏全貌画像</label></div></div></div>
+        <details id="rewrite-panel" class="rewrite-panel">
+          <summary>整篇重生成 / 已有文案改写 <span class="item-sub">润色 · 换武器 · 改参考 · 调分镜</span></summary>
+          <div class="rewrite-fields">
+            <p class="batch-note">载入或粘贴文案后调整内容，生成结果会另存为新草稿。可润色、换武器、换参考、调整分镜；生成候选后再决定采用。</p>
+            <div class="rewrite-actions"><button class="btn-sm" onclick="loadCurrentRevision()">载入当前稿件</button><button class="btn-sm" onclick="refreshRevisionSources()">选择草稿 / 文案库</button><button class="btn-sm" onclick="clearRevision()">清空改写区</button></div>
+            <div id="revision-source-picker" hidden><label for="revision-source-search">查找已有稿件</label><input class="search-input" id="revision-source-search" placeholder="检索标题或编号" oninput="filterRevisionSources()"><select id="revision-source-select" aria-label="已有稿件"></select><button class="btn-sm" onclick="loadSelectedRevision()">载入选中稿件</button></div>
+            <p id="revision-source-label" class="batch-note">直接粘贴文案开始</p>
+            <label for="revision-script">待优化全文</label><textarea id="revision-script" rows="9" placeholder="粘贴已有口播，或从草稿 / 文案库载入" oninput="persistRevision()"></textarea>
+            <label for="revision-reference">补充参考文案（可修改或留空）</label><textarea id="revision-reference" rows="4" oninput="persistRevision()"></textarea>
+            <div class="rewrite-grid"><div><label for="revision-operation">改写方式</label><select id="revision-operation" onchange="persistRevision()"><option>润色优化</option><option>换武器改写</option><option>重新洗稿</option></select></div><div><label for="revision-scene-policy">分镜处理</label><select id="revision-scene-policy" onchange="persistRevision()"><option value="preserve">保留分镜数量与顺序</option><option value="rebuild">重新组织分镜</option></select></div></div>
+            <label class="rewrite-selection"><input id="revision-use-selection" type="checkbox" onchange="persistRevision()">使用下面选择的素材替换对应板块</label><p class="batch-note">选择武器可换武器，选择竞对 / 分镜 / 组件可换参考；未选板块沿用来源素材。直接粘贴时，未选武器使用全库候选。</p>
+            <details><summary>更换素材范围</summary><div id="editor-material-pickers" class="rewrite-grid"></div></details>
+            <details><summary>调整分镜草案 <span id="revision-scene-count">0 镜</span></summary><p class="batch-note">可直接改台词、画面、动作、增删分镜；这是新稿的创作输入，全文决定口播内容。</p><div id="revision-scenes"></div><button class="btn-sm" onclick="addRevisionScene()">添加一镜</button></details>
+            <label for="revision-instruction">本次修改要求</label><textarea id="revision-instruction" rows="3" placeholder="例如：换成菜刀和水滴，保留开头的犹豫，第三镜改成怪潮逼近，结尾停在守住这一波" oninput="persistRevision()"></textarea>
+            <div class="rewrite-actions"><button class="btn btn-primary" id="btn-revision" onclick="generateRevision()">生成整篇候选新稿</button><button class="btn-sm" onclick="openPromptEditor(true)">预览本次提示词</button></div>
+            <section id="revision-candidate" hidden class="editor-candidate"><h3>整篇候选 · 已另存草稿</h3><p id="revision-candidate-name"></p><textarea id="revision-candidate-text" readonly rows="8" aria-label="整篇候选文案"></textarea><div class="rewrite-actions"><button class="btn-sm" id="revision-adopt" onclick="adoptRevisionCandidate()">采用并在精修中打开</button><button class="btn-sm" onclick="discardRevisionCandidate()">继续保留当前稿</button></div></section>
+            <p id="revision-status" role="status"></p>
+          </div>
+        </details>
+        <div class="editor-manuscript-panel"><label class="editor-copy-label" for="editor-manuscript">修改稿全文 · 可直接修改</label><p id="editor-total"></p><textarea id="editor-manuscript" rows="12" oninput="editManuscript(this.value)"></textarea><div class="rewrite-actions"><button class="btn-sm" onclick="resolveSceneMismatch(true)">按换行同步到分镜</button><button class="btn-sm" id="editor-regenerate-all" onclick="regenerateEditorManuscript()">不满意，重新生成全文</button></div></div>
+        <div class="editor-editing-head"><span>逐镜打磨</span><span>全文可直接修改 · 按换行分配台词 · Ctrl + S 保存</span></div>
+        <div id="manual-editor-mismatch" hidden><strong>全文与分镜台词尚未同步</strong><p>可以直接保存人工全文；画面、动作及时长精修保留，子记录人工台词清空。要同步台词，请在上方修改稿全文中按一镜一段换行后分配，或明确从当前分镜台词继续编辑。</p><div><button class="btn-sm" onclick="resolveSceneMismatch(true)">按换行分配</button><button class="btn-sm" onclick="resolveSceneMismatch(false)">使用当前分镜台词</button></div></div>
+        <p id="manual-editor-error" role="alert"></p><p id="editor-warning" role="status"></p><div id="manual-editor-scenes"></div>
+      </section>
+    </div>
+  </dialog>
+  <script src="studio.js"></script>
+  <script>
+    let overviewData = null;
+    let currentTab = 'weapons';
+    let currentSlot = null;
+    let currentGenerated = null;
+    let selectedWeaponId = null;
+    let selectedRivalId = null;
+
+    let currentMode = '多篇竞对-多向融合';
+
+    async function init() {
+      try {
+        await loadMaterialOverview();
+        await detectRandomSamplingSupport();
+        reconcileMaterialSelection();
+
+        document.getElementById('count-w').innerText = overviewData.counts.weapons;
+        document.getElementById('count-r').innerText = overviewData.counts.rival_struct;
+        document.getElementById('count-s').innerText = overviewData.counts.rival_shots;
+        document.getElementById('count-c').innerText = overviewData.counts.rival_comp;
+        document.getElementById('count-wf').innerText = overviewData.counts.welfare;
+        document.getElementById('count-gp').innerText = overviewData.counts.gameplay || 14;
+        document.getElementById('count-level').innerText = overviewData.counts.levels || 0;
+
+        // 加载当前大模型配置并在顶栏展示
+        try {
+          const cfgRes = await fetch('/api/config');
+          const cfgData = await cfgRes.json();
+          if (cfgData.ok && cfgData.config && cfgData.config.model_service) {
+            applyModelConfig(cfgData.config);
+            refreshModels();
+          }
+        } catch(e) {}
+
+        renderCurrentTab();
+        document.getElementById("btn-theme").textContent = document.documentElement.dataset.theme === "dark" ? "浅色" : "深色";
+        const savedBatch = localStorage.getItem("studio-batch-id");
+        if (savedBatch) pollBatch(savedBatch);
+        refreshDraftCount();
+        if (!currentSlot) {
+          await rollSlot();
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    function switchMode(mode) {
+      currentMode = mode;
+      document.getElementById('mode-btn-mix').className = 'tab-btn' + (mode === '多篇竞对-多向融合' ? ' active' : '');
+      document.getElementById('mode-btn-single').className = 'tab-btn' + (mode === '单篇竞对-定向仿写' ? ' active' : '');
+      document.getElementById('mode-btn-skl').className = 'tab-btn' + (mode === '竞对骨架-原创内容' ? ' active' : '');
+      document.getElementById('mode-btn-ori').className = 'tab-btn' + (mode === '本体事实-自主原创' ? ' active' : '');
+      document.getElementById('slot-mode-badge').innerText = mode;
+
+      // 根据模式控制竞对板块展示
+      const secRivals = document.getElementById('section-rivals');
+      const secShots = document.getElementById('section-shots');
+      const secComps = document.getElementById('section-comps');
+      const rivalsTitle = document.getElementById('rivals-section-title');
+
+      if (mode === '本体事实-自主原创') {
+        secRivals.style.display = 'none';
+        secShots.style.display = 'none';
+        secComps.style.display = 'none';
+      } else {
+        secRivals.style.display = 'block';
+        secShots.style.display = 'block';
+        secComps.style.display = 'block';
+        if (mode === '单篇竞对-定向仿写') {
+          rivalsTitle.innerHTML = ' 2. 唯一仿写蓝本 (1篇高保真洗稿)';
+        } else {
+          rivalsTitle.innerHTML = ' 2. 融合参考竞对 (2~3篇多向拆解)';
+        }
+      }
+
+      rollSlot(selectedWeaponId, selectedRivalId);
+    }
+
+    function switchTab(tab) {
+      currentTab = tab;
+      document.querySelectorAll('.tabs-nav .tab-btn').forEach((b, idx) => {
+        const tabs = ['weapons', 'rivals', 'shots', 'comps', 'welfares', 'gameplays', 'levels'];
+        if (tabs[idx] === tab) b.classList.add('active');
+        else b.classList.remove('active');
+      });
+      document.getElementById('search-box').value = '';
+      renderCurrentTab();
+    }
+
+    function renderCurrentTab() {
+      if (!overviewData) return;
+      const listEl = document.getElementById('tab-content-list');
+      listEl.innerHTML = '';
+      const q = document.getElementById('search-box').value.trim().toLowerCase();
+
+      if (currentTab === 'weapons') {
+        const weapons = overviewData.weapons.filter(w => !q || w.name.toLowerCase().includes(q) || w.feature.toLowerCase().includes(q));
+        document.getElementById('active-cold-badge').innerText = `${overviewData.counts.weapons_unused} 个未用冷门`;
+        weapons.forEach(w => {
+          const item = document.createElement('div');
+          item.className = 'list-item' + (w.id === selectedWeaponId ? ' active' : '');
+          item.innerHTML = `
+            <div>
+              <div class="item-title">${w.name} <span class="tag tag-blue" style="">${w.position}</span></div>
+              <div class="item-sub">${w.skill_count}个强化 · ${w.feature.substring(0, 16)}...</div>
+            </div>
+            <span class="badge ${w.used_count === 0 ? 'badge-danger' : ''}">${w.used_count}次</span>
+          `;
+          item.onclick = () => {
+            selectedWeaponId = w.id;
+            renderCurrentTab();
+            rollSlot(w.id, selectedRivalId);
+          };
+          addMaterialCheckbox(item, 'weapons', w.id, w.name);
+          listEl.appendChild(item);
+        });
+      } else if (currentTab === 'rivals') {
+        const rivals = overviewData.rivals.filter(r => !q || r.code.toLowerCase().includes(q) || r.hook.toLowerCase().includes(q) || r.style.toLowerCase().includes(q));
+        document.getElementById('active-cold-badge').innerText = `${overviewData.counts.rival_unused} 篇未用竞对`;
+        rivals.forEach(r => {
+          const item = document.createElement('div');
+          item.className = 'list-item' + (r.id === selectedRivalId ? ' active' : '');
+          item.innerHTML = `
+            <div>
+              <div class="item-title">${r.code} <span class="tag tag-purple" style="">${r.style}</span></div>
+              <div class="item-sub">${r.hook.substring(0, 20)}...</div>
+            </div>
+            <span class="badge ${r.used_count === 0 ? 'badge-danger' : ''}">${r.used_count}次</span>
+          `;
+          item.onclick = () => {
+            selectedRivalId = r.id;
+            renderCurrentTab();
+            rollSlot(selectedWeaponId, r.id);
+          };
+          addMaterialCheckbox(item, 'rivals', r.id, r.code);
+          listEl.appendChild(item);
+        });
+      } else if (currentTab === 'shots') {
+        const shots = overviewData.shots.filter(s => !q || s.code.toLowerCase().includes(q) || s.desc.toLowerCase().includes(q) || s.text.toLowerCase().includes(q));
+        document.getElementById('active-cold-badge').innerText = `${overviewData.counts.shots_unused} 个未用分镜`;
+        shots.forEach(s => {
+          const item = document.createElement('div');
+          item.className = 'list-item';
+          item.innerHTML = `
+            <div>
+              <div class="item-title">${s.code} <span class="tag tag-green" style="">${s.type}</span></div>
+              <div class="item-sub">${s.desc.substring(0, 22)}...</div>
+            </div>
+            <span class="badge ${s.used_count === 0 ? 'badge-danger' : ''}">${s.used_count}次</span>
+          `;
+          addMaterialCheckbox(item, 'shots', s.id, s.code);
+          listEl.appendChild(item);
+        });
+      } else if (currentTab === 'comps') {
+        const comps = overviewData.components.filter(c => !q || c.code.toLowerCase().includes(q) || c.text.toLowerCase().includes(q) || c.emotion.toLowerCase().includes(q));
+        document.getElementById('active-cold-badge').innerText = `${overviewData.counts.comp_unused} 条未用组件`;
+        comps.forEach(c => {
+          const item = document.createElement('div');
+          item.className = 'list-item';
+          item.innerHTML = `
+            <div>
+              <div class="item-title">${c.code} <span class="tag" style="">${c.emotion}</span></div>
+              <div class="item-sub">${c.text.substring(0, 22)}...</div>
+            </div>
+            <span class="badge ${c.used_count === 0 ? 'badge-danger' : ''}">${c.used_count}次</span>
+          `;
+          addMaterialCheckbox(item, 'comps', c.id, c.code);
+          listEl.appendChild(item);
+        });
+      } else if (currentTab === 'welfares') {
+        const welfares = overviewData.welfares.filter(wf => !q || wf.name.toLowerCase().includes(q) || wf.content.toLowerCase().includes(q));
+        document.getElementById('active-cold-badge').innerText = `共 ${overviewData.welfares.length} 个福利项`;
+        welfares.forEach(wf => {
+          const item = document.createElement('div');
+          item.className = 'list-item';
+          item.innerHTML = `
+            <div>
+              <div class="item-title">${wf.name} <span class="tag tag-green" style="">${wf.type}</span></div>
+              <div class="item-sub">${wf.content.substring(0, 22)}...</div>
+            </div>
+            <span class="badge">${wf.used_count}次</span>
+          `;
+          addMaterialCheckbox(item, 'welfares', wf.id, wf.name);
+          listEl.appendChild(item);
+        });
+      } else if (currentTab === 'gameplays') {
+        const gameplays = (overviewData.gameplays || []).filter(gp => !q || gp.title.toLowerCase().includes(q) || gp.summary.toLowerCase().includes(q) || gp.content.toLowerCase().includes(q));
+        document.getElementById('active-cold-badge').innerText = `共 ${overviewData.counts.gameplay || 14} 条玩法规则`;
+        gameplays.forEach(gp => {
+          const item = document.createElement('div');
+          item.className = 'list-item';
+          item.innerHTML = `
+            <div>
+              <div class="item-title">${gp.title} <span class="tag tag-blue" style="">${gp.category}</span></div>
+              <div class="item-sub" style="line-height:1.35; margin-top:0.15rem;">${gp.summary}</div>
+            </div>
+          `;
+          addMaterialCheckbox(item, 'gameplays', gp.id, gp.title);
+          listEl.appendChild(item);
+        });
+      } else if (currentTab === 'levels') {
+        const levels = (overviewData.levels || []).filter(level => !q || String(level.number || '').includes(q) || level.name.toLowerCase().includes(q) || level.feature.toLowerCase().includes(q) || level.description.toLowerCase().includes(q));
+        document.getElementById('active-cold-badge').innerText = `共 ${overviewData.levels.length} 个关卡`;
+        levels.forEach(level => {
+          const item = document.createElement('div');
+          item.className = 'list-item';
+          item.innerHTML = `
+            <div>
+              <div class="item-title">${level.number ? '关卡' + escapeText(level.number) + ' · ' : ''}${escapeText(level.name)} <span class="tag tag-blue">${Number(level.image_count || 0)}张参考图</span></div>
+              <div class="item-sub" style="line-height:1.35; margin-top:0.15rem;">${escapeText(level.feature || level.description)}</div>
+            </div>
+          `;
+          addMaterialCheckbox(item, 'levels', level.id, level.name);
+          listEl.appendChild(item);
+        });
+      }
+      renderMaterialSelection();
+    }
+
+    function filterCurrentTab() {
+      renderCurrentTab();
+    }
+
+    // 摇号抽取正交组合
+    async function rollSlot(weaponId = null, rivalId = null) {
+      if (!materialVisibilityReady() || !randomSamplingReady()) return;
+      const visibilityChoice = hideUsedRivals;
+      const previousWeapon = currentSlot?.weapon?.id;
+      const selection = batchSelectionPayload();
+      const drawMode = currentMode;
+      invalidateMaterialSlot();
+      const revision = materialDrawRevision;
+      document.getElementById('slot-summary').textContent = '正在抽取…';
+      let res, data;
+      try {
+        res = await fetch('/api/slot-machine', {method:'POST', headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({mode:drawMode, hide_used_rivals:hideUsedRivals, weapon_id:weaponId, rival_id:rivalId,
+            avoid_weapon_id:weaponId ? null : previousWeapon, selection, pure_random:pureRandomSampling,
+            sampling_counts:pureRandomSampling ? randomSamplingCounts : {}})});
+        data = await res.json();
+        if (!res.ok || !data.weapon) throw new Error(res.status === 405 ? '后端尚未加载范围抽取，请保存页面并等待任务完成后重启服务' : data.detail || '素材抽取失败');
+      } catch(e) {
+        if (revision !== materialDrawRevision) return;
+        document.getElementById('slot-summary').textContent = '抽取未完成，请重试';
+        document.getElementById('error-box').textContent = e.message;
+        document.getElementById('error-box').style.display = 'block';
+        return;
+      }
+      if (revision !== materialDrawRevision || visibilityChoice !== hideUsedRivals || drawMode !== currentMode || !materialVisibilityReady()) return;
+      currentSlot = data;
+      acceptRandomSampling(data.sampling);
+      document.getElementById("slot-summary").textContent = data.weapon.name || data.material_code;
+
+      document.getElementById('slot-mode-badge').innerText = `${data.material_code} (${data.mode})`;
+
+      // 0. 关卡库仅在明确勾选后注入展示
+      const level = data.level;
+      document.getElementById('slot-level').innerHTML = level
+        ? `<div class="sub-card" style="border-left:3px solid var(--accent);"><strong>关卡${level.number || ''} · ${escapeText(level.name)}</strong><div style="color:var(--text-muted); margin-top:0.2rem;">${escapeText(level.feature || level.description)}</div></div>`
+        : '<div class="sub-card">未勾选关卡库，不注入关卡信息</div>';
+
+      // 1. 玩法库事实渲染
+      const gpList = data.gameplay_facts || [];
+      const gpHtml = gpList.map(g => `
+        <div class="sub-card" style="border-left:3px solid var(--success); margin-bottom:0.25rem;">
+          <strong style="color:var(--success); ">【${g.title}】</strong>
+          <span style="color:var(--text-muted);">${g.summary}</span>
+        </div>
+      `).join('');
+      document.getElementById('slot-gameplay').innerHTML = gpHtml || '<div class="sub-card">未勾选玩法库，不注入玩法条目；脚本不补写通用玩法流程。</div>';
+
+      // 1. 武器与技能
+      document.getElementById('slot-w-usage').innerText = `使用: ${data.weapon.used_count}次`;
+      document.getElementById('slot-w-usage').className = `badge ${data.weapon.used_count === 0 ? 'badge-danger' : ''}`;
+      const skillsHtml = data.weapon.skills.map(s => `
+        <div class="sub-card" style="margin-bottom:0.25rem;">
+          <span class="tag tag-blue">${s.name}</span>
+          <span style="color:var(--text-muted);">${s.desc}</span>
+        </div>
+      `).join('');
+      document.getElementById('slot-weapon').innerHTML = `
+        <div style="margin-bottom:0.35rem;">
+          <strong>${data.weapon.name}</strong> <span class="tag tag-blue">${data.weapon.position}</span>
+          <span style="color:var(--text-muted);">${data.weapon.feature}</span>
+        </div>
+        ${skillsHtml || '<div class="sub-card">基础机制特写</div>'}
+      `;
+
+      // 2. 融合竞对 (根据模式渲染)
+      if (currentMode === '本体事实-自主原创') {
+        document.getElementById('section-rivals').style.display = 'none';
+        document.getElementById('section-shots').style.display = 'none';
+        document.getElementById('section-comps').style.display = 'none';
+      } else {
+        document.getElementById('section-rivals').style.display = 'block';
+        document.getElementById('section-shots').style.display = 'block';
+        document.getElementById('section-comps').style.display = 'block';
+
+        let bpCard = '';
+        if (currentMode === '多篇竞对-多向融合' && data.stitched_blueprint) {
+          const bp = data.stitched_blueprint;
+          bpCard = `
+            <div style="background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:0.6rem 0.75rem; margin-bottom:0.6rem;">
+              <div style="font-weight:700; color:var(--accent); margin-bottom:0.35rem;">多篇内容融合 · ${bp.sources?.length || data.rivals?.length || 0} 篇原稿都进入写稿参考</div>
+              <div style="color:var(--text-muted); line-height:1.45;">每篇原稿都需贡献可迁移的叙事动作、转折或表达组织；分镜时间连续性单独锚定【${escapeText(bp.shot_anchor_code || '主参考')}】，不跨视频拼接镜头。</div>
+            </div>
+          `;
+        }
+
+        const rivalsHtml = bpCard + (data.rivals || []).map((r, i) => `
+          <div class="sub-card">
+            <div style="display:flex; justify-content:space-between; margin-bottom:0.2rem;">
+              <strong>${currentMode === '单篇竞对-定向仿写' ? ' 唯一仿写蓝本: ' : ` 融合来源${i + 1}: `}${escapeText(r.code)}</strong>
+              <span class="badge ${r.used_count === 0 ? 'badge-danger' : ''}" style="">${r.used_count}次</span>
+            </div>
+            <div><span class="tag tag-purple">${escapeText(r.style)}</span> <span style="color:var(--text-muted);">${escapeText(r.rhythm)}</span>${currentMode === '多篇竞对-多向融合' && i === 0 ? ` <span class="tag tag-blue">分镜连续锚点</span>` : ''}</div>
+            <div style="margin-top:0.15rem; color:var(--text-muted);">钩子: "${escapeText(r.hook)}"</div>
+            ${(currentMode === '多篇竞对-多向融合' || i === 0 || currentMode === '单篇竞对-定向仿写') && r.raw_script ? `
+              <div style="background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:0.45rem 0.6rem; margin-top:0.35rem; max-height:85px; overflow-y:auto; line-height:1.45;">
+                <strong style="color:var(--accent);">${currentMode === '多篇竞对-多向融合' ? ' 本篇原稿（参与内容融合）：' : ' 待洗稿原稿口播全文：'}</strong><br>
+                <span style="color:var(--text-muted);">${escapeText(r.raw_script)}</span>
+              </div>
+            ` : ''}
+          </div>
+        `).join('');
+        document.getElementById('slot-rivals').innerHTML = rivalsHtml;
+
+        // 3. 同一主参考中的连续分镜（最多3镜）
+        const shotsHtml = (data.shots || []).map(s => `
+          <div class="sub-card" style="display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <span class="tag tag-blue">${escapeText(s.code)}</span>
+              <span class="tag tag-purple">${escapeText(s.source_rival_code || '主参考')}</span>
+              <span style="">${escapeText(s.desc)}</span>
+            </div>
+            <span class="badge ${s.used_count === 0 ? 'badge-danger' : ''}" style="">${s.used_count}次</span>
+          </div>
+        `).join('');
+        document.getElementById('slot-shots').innerHTML = shotsHtml || '<div class="sub-card">主参考中没有可确认连续顺序的分镜，本次不混入其他视频镜头。</div>';
+
+        // 4. 组件拼装链
+        const compsHtml = (data.components || []).map(c => `
+          <div class="sub-card" style="display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <span class="tag tag-green">${c.code} (${c.type})</span>
+              <span style="">${c.text}</span>
+            </div>
+            <span class="badge ${c.used_count === 0 ? 'badge-danger' : ''}" style="">${c.used_count}次</span>
+          </div>
+        `).join('');
+        document.getElementById('slot-comps').innerHTML = compsHtml;
+      }
+
+      // 5. 福利与情绪
+      const emTags = (data.emotions || []).map(em => `<span class="tag">${em}</span>`).join('');
+      const wfText = data.welfare ? `
+        <div class="sub-card">
+          <span class="tag tag-green">${data.welfare.name}</span>
+          <span style="color:var(--text-muted);">${data.welfare.content} (使用: ${data.welfare.used_count}次)</span>
+        </div>
+      ` : '<div class="sub-card">无特定福利</div>';
+      document.getElementById('slot-welfare-emotion').innerHTML = `
+        <div style="margin-bottom:0.3rem;">情绪动线: ${emTags}</div>
+        ${wfText}
+      `;
+
+      if (!busy) document.getElementById('btn-generate').removeAttribute('disabled');
+      document.getElementById('error-box').style.display = 'none';
+    }
+
+    // 单次生成
+    async function generateScript() {
+      if (!materialVisibilityReady()) return;
+      if (!await preserveHumanChanges()) return;
+      if (!currentSlot || busy) return;
+      const sourceSlot = structuredClone(currentSlot);
+      setGenerationBusy(true);
+
+      document.getElementById('loader').style.display = 'block';
+      document.getElementById('result-container').style.display = 'none';
+      document.getElementById('empty-hint').style.display = 'none';
+      document.getElementById('error-box').style.display = 'none';
+      document.getElementById('btn-generate').setAttribute('disabled', 'true');
+      document.getElementById('writeback-status').innerText = '';
+
+      try {
+        const payload = {
+          weapon: currentSlot.weapon,
+          weapon_candidates: currentSlot.weapon_candidates || [],
+          rivals: currentSlot.rivals || [],
+          shots: currentSlot.shots || [],
+          components: currentSlot.components || [],
+          welfare: currentSlot.welfare,
+          gameplay_facts: currentSlot.gameplay_facts || [],
+          selected_gameplay_ids: currentSlot.selected_gameplay_ids || [],
+          level: currentSlot.level || null,
+          stitched_blueprint: currentSlot.stitched_blueprint || null,
+          stitched_ref_script: currentSlot.stitched_ref_script || "",
+          emotions: currentSlot.emotions,
+          mode: currentMode,
+          rewrite_mode: document.getElementById('rewrite-mode-select').value,
+          enable_game_profile: document.getElementById('toggle-game-profile').checked,
+          custom_instruction: document.getElementById('custom-prompt').value,
+          ...generationSettings(),
+          selection:batchSelectionPayload()
+        };
+
+        const res = await fetch('/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        document.getElementById('loader').style.display = 'none';
+        setGenerationBusy(false);
+
+        if (!res.ok || !data.ok) {
+          const errDetail = data.detail || data.error || (typeof data === 'string' ? data : JSON.stringify(data));
+          const isModelTimeout = /模型请求超过|timed?\s*out|timeout/i.test(String(errDetail));
+          document.getElementById('error-box').style.display = 'block';
+          document.getElementById('error-box').innerHTML = `
+            <strong> 生成失败：</strong>
+            <div>${escapeText(errDetail)}</div>
+            <div style="margin-top:0.4rem; color:var(--danger);">${isModelTimeout ? '提示：这是模型请求等待超时；可在“模型配置”延长等待上限，或降低思考程度后重试。' : '提示：这是生成内容未通过校验，错误详情已列出未通过项；请按原因调整后重试。'}</div>
+          `;
+          return;
+        }
+
+        currentGenerated = data.result;
+        generatedSlot = sourceSlot;
+        currentGenerated.source_slot = sourceSlot;
+        currentGenerated.model = payload.model;
+        renderResult(data.result);
+      } catch (e) {
+        document.getElementById('loader').style.display = 'none';
+        setGenerationBusy(false);
+        document.getElementById('error-box').style.display = 'block';
+        document.getElementById('error-box').innerHTML = `
+          <strong> 请求异常：</strong>
+          <div>${escapeText(e.message)}</div>
+        `;
+      }
+    }
+
+    function renderResult(res) {
+      document.querySelector('.radar-box').hidden = false;
+      activeResultCode = res.material_code;
+      document.getElementById('writeback-status').textContent = '';
+      document.getElementById('btn-collect-result').textContent = res._collected ? '已收纳 · 取消收纳' : '收纳到草稿箱';
+      if (batchJob) renderBatch();
+      document.getElementById('result-container').style.display = 'block';
+      document.getElementById('btn-writeback').disabled = !generatedSlot;
+      document.getElementById('res-title').innerText = res.title || '二创文案';
+      document.getElementById('res-code').innerText = res.material_code || generatedSlot?.material_code || '';
+      document.getElementById('res-weapons').textContent = weaponAnnotation(res);
+      document.getElementById('res-dup').innerText = res.dup_summary || '-';
+      document.getElementById('res-hook-analysis').innerText = res.hook_analysis || '-';
+      document.getElementById('res-ref-script').innerText = referenceText(res);
+      document.getElementById('res-script').innerText = res.full_script || '';
+      renderManualPanel(res);
+      if (typeof renderQualitySummary === 'function') renderQualitySummary(res);
+
+      const audit = res.audit || {};
+      const speedEl = document.getElementById('radar-speed');
+      const bannedEl = document.getElementById('radar-banned');
+
+      document.getElementById('val-speed').innerText = audit.total_est_seconds == null ? '旧草稿 · 未核验' : `口播 ${audit.total_est_seconds}s · 分镜 ${audit.total_shot_seconds}s${audit.max_duration ? ' / 上限 ' + audit.max_duration + 's' : ''}`;
+      if (audit.shot_speed_warnings && audit.shot_speed_warnings.length > 0) {
+        speedEl.className = 'radar-tag warn';
+      } else {
+        speedEl.className = 'radar-tag ok';
+      }
+
+      if (audit.banned_words_found && audit.banned_words_found.length > 0) {
+        bannedEl.className = 'radar-tag warn';
+        document.getElementById('val-banned').innerText = `发现公关词: ${audit.banned_words_found.join(',')}`;
+      } else {
+        bannedEl.className = 'radar-tag ok';
+        document.getElementById('val-banned').innerText = '0 公关词 · 口语质检通过';
+      }
+
+      // 第一稿（逐镜对仗/意译仿写拼接原文）展示
+      const stage1Panel = document.getElementById('res-stage1-panel');
+      const stage1Text = res.stage1_stitched_script || (res.stage1_shots && res.stage1_shots.length ? res.stage1_shots.map(s => s.stage1_text).join('') : '');
+      const stage1Shots = res.stage1_shots && res.stage1_shots.length ? res.stage1_shots : (res.shots || []).filter(s => s.stage1_text);
+      if (stage1Text || stage1Shots.length) {
+        stage1Panel.style.display = 'block';
+        document.getElementById('res-stage1-script').textContent = stage1Text || '已完成逐镜仿写拼接';
+        const isStructural = (res.rewrite_mode === 'structural' || currentGenerated.source_slot?.rewrite_mode === 'structural');
+        document.getElementById('res-stage1-badge').textContent = isStructural ? '意译仿写初版' : '1:1 对仗仿写初版';
+        document.getElementById('res-stage1-table').innerHTML = stage1Shots.map((sh, idx) => `
+          <div style="background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:0.5rem 0.65rem; line-height:1.45;">
+            <div style="display:flex; justify-content:space-between; margin-bottom:0.2rem;">
+              <span class="tag tag-blue">第 ${idx + 1} 镜 · ${escapeText(sh.ref_type || sh.type || '分镜')}</span>
+              <span class="tag tag-purple">${escapeText(sh.ref_code || sh.source_rival_code || '')}</span>
+            </div>
+            <div style="color:var(--text-muted); margin-bottom:0.15rem;"><strong>竞对原句：</strong>${escapeText(sh.ref_text || '')}</div>
+            <div style="color:var(--text); font-weight:600;"><strong style="color:var(--accent);">仿写初版：</strong>${escapeText(sh.stage1_text || sh.text || '')}</div>
+          </div>
+        `).join('');
+      } else {
+        stage1Panel.style.display = 'none';
+      }
+
+      const shotsEl = document.getElementById('shots-list');
+      shotsEl.innerHTML = '';
+      const referenceLabel = currentGenerated.source_slot?.mode === '多篇竞对-多向融合' ? '融合来源贡献' : '竞对原句';
+      (res.shots || []).forEach((sh,index) => {
+        const manual = res.manual_shots?.[index];
+        const item = document.createElement('div');
+        item.className = 'shot-card';
+        if (sh.is_over) item.style.borderLeftColor = 'var(--danger)';
+        item.innerHTML = `
+          <div class="shot-header">
+            <span>第 ${sh.shot_num} 镜 · ${Number(sh.duration || 0).toFixed(1)}s ${sh.is_over ? '<strong style="color:var(--danger)"> 偏快</strong>' : ' 达标'} (${(sh.text || '').length}字)</span>
+            <span>${escapeText(sh.game_action || '')}</span>
+          </div>
+          <div style="background:var(--surface); border-radius:4px; padding:0.35rem 0.5rem; margin-bottom:0.35rem; color:var(--text-muted); border-left:3px solid var(--accent); line-height:1.4;">
+            <strong style="color:var(--accent);"> ${referenceLabel}:</strong> ${escapeText(sh.ref_text || '原稿对应段落')}
+          </div>
+          ${sh.stage1_text ? `
+          <div style="background:var(--bg); border-radius:4px; padding:0.3rem 0.5rem; margin-bottom:0.35rem; color:var(--text-muted); border-left:3px solid var(--purple); line-height:1.4;">
+            <strong style="color:var(--purple);"> 仿写初版:</strong> ${escapeText(sh.stage1_text)}
+          </div>
+          ` : ''}
+          <div style="font-weight:600; margin-bottom:0.25rem; color:var(--text); line-height:1.4;">
+            <strong style="color:var(--text);"> 洗稿台词:</strong> ${escapeText(sh.text)}
+          </div>
+          <div style="color:var(--text-muted);"> ${escapeText(sh.visual)}</div>
+          ${manual ? `<div class="manual-shot-preview"><strong>人工精修 · ${escapeText(manual.duration)} 秒</strong><p>${escapeText(manual.text)}</p><div>画面：${escapeText(manual.visual)}</div><div>游戏动作：${escapeText(manual.game_action)}</div></div>` : ''}
+        `;
+        shotsEl.appendChild(item);
+      });
+    }
+
+    function copyScript() {
+      if (!currentGenerated) return;
+      navigator.clipboard.writeText(currentGenerated.manual_script || currentGenerated.full_script);
+      alert('洗稿口播文案已复制到剪贴板！');
+    }
+
+    function exportMarkdown() {
+      if (!currentGenerated) return;
+      let md = `# 【${currentGenerated.title || '二创文案'}】\n\n`;
+      md += `**素材编号**: ${currentGenerated.material_code}\n`;
+      md += `**查重摘要**: ${currentGenerated.dup_summary || ''}\n`;
+      md += `**钩子爆点机制**: ${currentGenerated.hook_analysis}\n`;
+      md += `**正文爆点机制**: ${currentGenerated.body_analysis}\n\n`;
+      md += `##  竞对参考原稿口播\n${currentGenerated.ref_script || ''}\n\n`;
+      if (currentGenerated.stage1_stitched_script) md += `## 第一稿 · 竞对逐镜仿写拼接原文\n${currentGenerated.stage1_stitched_script}\n\n`;
+      md += `## 第二稿 · 洗稿二创口播全文 (AI 整体优化)\n${currentGenerated.full_script}\n\n`;
+      if (currentGenerated.manual_script) md += `## 人工修改稿\n${currentGenerated.manual_script}\n\n`;
+      md += `##  逐镜原文对照与分镜脚本\n`;
+      const referenceLabel = currentGenerated.source_slot?.mode === '多篇竞对-多向融合' ? '融合来源贡献' : '竞对原句';
+      (currentGenerated.shots || []).forEach(sh => {
+        md += `### 第 ${sh.shot_num} 镜 (${Number(sh.duration || 0).toFixed(1)}s)\n`;
+        md += `- **${referenceLabel}**: ${sh.ref_text || ''}\n`;
+        md += `- **洗稿台词**: ${escapeText(sh.text)}\n`;
+        md += `- **分镜画面**: ${escapeText(sh.visual)}\n`;
+        md += `- **游戏镜头**: ${escapeText(sh.game_action)}\n\n`;
+      });
+      (currentGenerated.manual_shots || []).forEach((sh,index) => {
+        md += `### 人工精修第 ${index+1} 镜 (${Number(sh.duration || 0).toFixed(1)}s)\n${sh.text}\n\n画面：${sh.visual}\n游戏动作：${sh.game_action}\n\n`;
+      });
+      const blob = new Blob([md], { type: 'text/markdown;charset=utf-8;' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${currentGenerated.material_code || 'script'}.md`;
+      a.click();
+    }
+
+    async function saveAsDraft() { await saveHumanDraft(); }
+
+    async function writebackToFeishu() {
+      if (!currentGenerated || !generatedSlot) return;
+      if (!await preserveHumanChanges()) return;
+      const payload = {
+        weapon_id: generatedSlot.weapon.id,
+        rival_ids: generatedSlot.rivals.map(r => r.id),
+        shot_ids: generatedSlot.shots.map(s => s.id),
+        comp_ids: generatedSlot.components.map(c => c.id),
+        welfare_id: generatedSlot.welfare ? generatedSlot.welfare.id : null,
+        emotions: generatedSlot.emotions, mode: generatedSlot.mode,
+        data: currentGenerated
+      };
+      await openWritebackPreview('/api/writeback', payload);
+    }
+
+    async function writebackDraft(filename, ev) {
+      if (ev) ev.stopPropagation();
+      if (currentGenerated?._filename === filename && !await preserveHumanChanges()) return;
+      await openWritebackPreview('/api/writeback-draft', {filename});
+    }
+
+    async function syncFeishu() {
+      const btn = document.getElementById('btn-sync');
+      btn.innerHTML = ' 同步中...';
+      btn.style.pointerEvents = 'none';
+
+      try {
+        const res = await fetch('/api/sync', { method: 'POST' });
+        const data = await res.json();
+        if (data.ok) {
+          alert(' 飞书云端全表已成功同步并重新计算全要素使用率！');
+          await init();
+        } else {
+          alert('同步失败: ' + data.detail);
+        }
+      } catch (e) {
+        alert('请求失败: ' + e.message);
+      } finally {
+        btn.innerHTML = ' 同步飞书';
+        btn.style.pointerEvents = 'auto';
+      }
+    }
+
+    async function refreshDraftCount() {
+      try {
+        const res = await fetch('/api/history');
+        const data = await res.json();
+        document.getElementById('draft-count').innerText = (data.records || []).length;
+        if (countDraftUsage && !visibilityLoading) {
+          await loadMaterialOverview();
+          renderCurrentTab();
+        }
+      } catch (e) {}
+    }
+
+    function closeHistory() {
+      document.getElementById('drawer-overlay').style.display = 'none';
+    }
+
+    // --- 模型配置管理函数 ---
+    async function openConfigModal() {
+      const modal = document.getElementById('config-modal-overlay');
+      const resBox = document.getElementById('cfg-test-result');
+      resBox.style.display = 'none';
+      try {
+        const res = await fetch('/api/config');
+        const data = await res.json();
+        if (data.ok && data.config) {
+          const m = data.config.model_service || {};
+          document.getElementById('cfg-api-url').value = m.api_url || 'http://127.0.0.1:8045';
+          document.getElementById('cfg-api-key').value = '';
+          document.getElementById('cfg-api-key').placeholder = m.api_key_configured ? '已配置密钥，留空保留' : '请输入 API 密钥';
+          document.getElementById('cfg-default-model').value = m.default_model || 'gemini-3.8-flash';
+          document.getElementById('cfg-request-timeout').value = m.request_timeout_seconds || 300;
+          document.getElementById('cfg-reasoning-effort').value = m.reasoning_effort || 'auto';
+        }
+      } catch (e) {
+        console.error('读取配置失败:', e);
+      }
+      modal.style.display = 'block';
+    }
+
+    function closeConfigModal() {
+      document.getElementById('config-modal-overlay').style.display = 'none';
+    }
+
+    async function testModelConfig() {
+      const btn = document.getElementById('btn-cfg-test');
+      const resBox = document.getElementById('cfg-test-result');
+      const apiUrl = document.getElementById('cfg-api-url').value.trim();
+      const apiKey = document.getElementById('cfg-api-key').value.trim();
+      const model = document.getElementById('cfg-default-model').value.trim();
+
+      btn.setAttribute('disabled', 'true');
+      btn.innerHTML = ' 测试中...';
+      resBox.style.display = 'none';
+
+      try {
+        const res = await fetch('/api/test-model', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ api_url: apiUrl, api_key: apiKey, model: model, reasoning_effort: document.getElementById('cfg-reasoning-effort').value })
+        });
+        const data = await res.json();
+        resBox.style.display = 'block';
+        if (data.ok) {
+          resBox.style.background = 'var(--border)';
+          resBox.style.color = 'var(--success)';
+          resBox.style.border = '1px solid var(--border)';
+          resBox.innerHTML = ` 连通成功！模型响应: <strong>${escapeText(data.reply)}</strong>`;
+        } else {
+          resBox.style.background = 'rgba(239, 68, 68, 0.2)';
+          resBox.style.color = 'var(--danger)';
+          resBox.style.border = '1px solid rgba(239, 68, 68, 0.4)';
+          resBox.innerHTML = ` 连通失败: ${escapeText(data.error)}`;
+        }
+      } catch (e) {
+        resBox.style.display = 'block';
+        resBox.style.background = 'rgba(239, 68, 68, 0.2)';
+        resBox.style.color = 'var(--danger)';
+        resBox.style.border = '1px solid rgba(239, 68, 68, 0.4)';
+        resBox.innerHTML = ` 请求发生异常: ${escapeText(e.message)}`;
+      } finally {
+        btn.removeAttribute('disabled');
+        btn.innerHTML = ' 连通性测试';
+      }
+    }
+
+    async function saveModelConfig() {
+      const btn = document.getElementById('btn-cfg-save');
+      const resBox = document.getElementById('cfg-test-result');
+      const apiUrl = document.getElementById('cfg-api-url').value.trim();
+      const apiKey = document.getElementById('cfg-api-key').value.trim();
+      const model = document.getElementById('cfg-default-model').value.trim();
+
+      btn.setAttribute('disabled', 'true');
+      btn.innerHTML = ' 保存中...';
+
+      try {
+        const res = await fetch('/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model_service: {
+              api_url: apiUrl,
+              api_key: apiKey,
+              default_model: model,
+              reasoning_effort: document.getElementById('cfg-reasoning-effort').value,
+              request_timeout_seconds: Number(document.getElementById('cfg-request-timeout').value)
+            }
+          })
+        });
+        const data = await res.json();
+        if (data.ok) {
+          resBox.style.display = 'block';
+          resBox.style.background = 'var(--border)';
+          resBox.style.color = 'var(--success)';
+          resBox.style.border = '1px solid var(--border)';
+          resBox.innerHTML = ` 配置已成功持久化保存！`;
+          applyModelConfig(data.config);
+          await refreshModels();
+          setTimeout(() => { closeConfigModal(); }, 1000);
+        } else {
+          alert('保存失败: ' + (data.detail || '未知错误'));
+        }
+      } catch (e) {
+        alert('保存异常: ' + e.message);
+      } finally {
+        btn.removeAttribute('disabled');
+        btn.innerHTML = ' 保存并生效';
+      }
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      init();
+    }
+  </script>
+  <script src="manual-editor.js"></script>
+  <script src="rewrite-prompts.js"></script>
+  <script src="editor-ai.js"></script>
+  <script src="material-intake.js"></script>
+  <script src="quality-lab.js"></script>
+  <script src="prompt-optimizer.js"></script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+{
+  "version": "1.1.0",
+  "model_service": {
+    "api_url": "http://127.0.0.1:8045",
+    "api_key": "",
+    "default_model": "your-model-id",
+    "request_timeout_seconds": 300
+  },
+  "feishu": {"base_token": "", "table_ids": {}},
+  "server": {"host": "127.0.0.1", "port": 8501}
+}
