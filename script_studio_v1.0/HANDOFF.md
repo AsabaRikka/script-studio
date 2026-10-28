@@ -61,6 +61,8 @@
 
 历史检查发现真实 Base Token 曾进入旧 README，因此保留本地历史，但不上传旧历史；仅发布清洁当前tree。真实 `config.json`、`prompt_overrides.json`、`data_cache/`、`output/` 不上传。下一步若继续功能开发，应处理上述测试与新抽样约定的冲突；后续发布禁止推送旧开发分支历史，按AGENTS发布快照规则操作。
 
+远端验证：已创建私有库，设置默认分支 `codex/github-publish`，首次干净根提交为 `000c808`（无父提交）；76个源码/文档文件检查未含当前模型密钥和Base Token，私有配置与业务目录未被跟踪。GitHub API读回README与本地一致，README本地链接检查通过；GitHub插件再次读回确认 `visibility=private` 及当前账号有push权限。`origin` 已配置，默认push refspec仅指向发布分支，开发分支未切换。此段验证记录将作为发布分支的后续文档提交同步。
+
 ### 2026-10-28 · 诊断驱动优化
 修改提示词优化后端、页面、测试和使用说明；136项回归通过；真实隔离GEPA结果与正式服务未加载边界见上文。下一步是安全加载并做正式只读核验。
 
